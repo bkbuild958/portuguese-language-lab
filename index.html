@@ -6,7 +6,7 @@
 <title>Portuguese Language Lab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Outfit:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap" rel="stylesheet">
 <style>:root {
   --areia: #f4efe6;
   --marfim: #fbf8f1;
@@ -35,7 +35,7 @@ h2 { margin: 1.6rem 0 0; font-size: 1.6rem; }
 h3.group { margin: 1.15rem 0 0.15rem; font-family: Outfit, ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ouro); }
 h4.sub { margin: 0.85rem 0 0.15rem; font-size: 1rem; font-weight: 600; }
 .clear { align-self: flex-start; margin: 0.75rem 1rem 0; min-height: 2.25rem; border-radius: 999px; border: 1px solid var(--fio); background: var(--marfim); color: var(--musgo); padding: 0 0.9rem; }
-p { text-wrap: pretty; }
+em { font-style: italic; }
 .page { max-width: 32rem; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
 .calcada { display: block; width: 100%; height: 1.75rem; }
 .pad { padding: 1.25rem 1.25rem 2.5rem; display: flex; flex-direction: column; gap: 0; flex: 1; }
@@ -245,6 +245,74 @@ dd { margin: 0; color: var(--musgo); }
       .replace(/>/g, amp + "gt;")
       .replace(/"/g, amp + "quot;");
   }
+  const SKIP = new Set("a an the i you he she it we they is are was were be been to of and or not in on at for with as by this that one once same form past here there so if but only also more all its own out over after before when what which who how just still even very too now last next week home time day long like means word words type set both can may will do no yes has have had did done make used add drop keep share per her ever never other under later number whether either them these those from your our their then than into about design full deal cool interview client stranger".split(/\s+/));
+  const CLING = new Set("a o os e de do da dos das no na nos nas em um uma uns umas ao aos num numa".split(/\s+/));
+  const ENDING = /(?:amos|emos|imos|ando|endo|indo|ado|ido|aram|eram|iram|ava|avas|avam|aste|este|iste)$/i;
+  const ptWords = new Set("eu você voce ele ela nós nos eles elas vocês voces tu gente cê ce tá ta tô to né ne cadê cade pra pro valeu beleza fechado massa legal ontem hoje amanhã amanha aqui sempre enquanto também tambem não nao já ja ainda muito pouco onde quando porque para sem com por que mais bem mal cedo tarde agora depois antes nunca sim senhor senhora obrigado obrigada perfeito imperfeito presente futuro composto infinitivo gerundio gerúndio condicional pretérito preterito particípio participio falar comer abrir ser estar ir ter fazer poder dizer trazer vir pôr por ver haver trabalhas".split(/\s+/));
+  function addWords(value) {
+    String(value || "").split(/[^A-Za-zÀ-ÿ]+/).forEach((word) => {
+      if (word) ptWords.add(word.toLowerCase());
+    });
+  }
+  lessons.forEach((lesson) => {
+    lesson.items.forEach((item) => {
+      addWords(item.speak);
+      if (item.answers) item.answers.forEach(addWords);
+      addWords(item.reveal);
+      if (item.pairs) item.pairs.forEach((pair) => addWords(pair.pt));
+      if (Array.isArray(item.answer)) item.answer.forEach(addWords);
+      if (item.prompt && item.prompt.indexOf("·") >= 0) item.prompt.split("·").forEach(addWords);
+    });
+  });
+  notes.forEach((note) => note.rows.forEach((row) => addWords(row.left)));
+  SKIP.forEach((word) => ptWords.delete(word));
+  CLING.forEach((word) => ptWords.delete(word));
+  function gloss(value) {
+    const tokens = String(value).match(/-[A-Za-zÀ-ÿ]+|[A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ-]+|-/g) || [];
+    const flags = tokens.map((token) => {
+      if (/^-[A-Za-zÀ-ÿ]+$/.test(token)) return true;
+      if (!/^[A-Za-zÀ-ÿ]+$/.test(token)) return false;
+      if (/[À-ÿ]/.test(token)) return true;
+      const low = token.toLowerCase();
+      if (SKIP.has(low) || CLING.has(low)) return false;
+      if (ptWords.has(low)) return true;
+      return low.length >= 4 && ENDING.test(low);
+    });
+    const words = [];
+    tokens.forEach((token, index) => {
+      if (/^[A-Za-zÀ-ÿ]+$/.test(token)) words.push(index);
+    });
+    const light = (from, to) => {
+      for (let i = from + 1; i < to; i++) if (!/^[\s]+$/.test(tokens[i])) return false;
+      return true;
+    };
+    tokens.forEach((token, index) => {
+      const low = token.toLowerCase();
+      if (!CLING.has(low) || flags[index]) return;
+      let prev = -1;
+      let next = -1;
+      words.forEach((word) => {
+        if (word < index) prev = word;
+        if (word > index && next < 0) next = word;
+      });
+      if (next >= 0 && flags[next] && light(index, next)) flags[index] = true;
+      else if (prev >= 0 && flags[prev] && light(prev, index)) flags[index] = true;
+    });
+    let html = "";
+    let open = false;
+    tokens.forEach((token, index) => {
+      if (flags[index] && !open) {
+        html += "<em>";
+        open = true;
+      } else if (!flags[index] && open) {
+        html += "</em>";
+        open = false;
+      }
+      html += esc(token);
+    });
+    if (open) html += "</em>";
+    return html;
+  }
   function accuracy() {
     let correct = 0;
     let wrong = 0;
@@ -380,7 +448,7 @@ dd { margin: 0; color: var(--musgo); }
             return stat && stat.correct > stat.wrong;
           }).length;
           const cleared = progress.cleared[lesson.id];
-          return `<li><button type="button" class="row ${tone(lesson.id)}" data-act="brief" data-id="${esc(lesson.id)}"><span class="thumb">${img(sketchFor(lesson.id), "thumb-img")}${cleared ? `<span class="tick">✓</span>` : ""}</span><span class="row-copy"><span class="row-title">${esc(lesson.title)}</span><span class="row-blurb">${esc(lesson.blurb)}</span></span><span class="count">${mastered}/${lesson.items.length}</span></button></li>`;
+          return `<li><button type="button" class="row ${tone(lesson.id)}" data-act="brief" data-id="${esc(lesson.id)}"><span class="thumb">${img(sketchFor(lesson.id), "thumb-img")}${cleared ? `<span class="tick">✓</span>` : ""}</span><span class="row-copy"><span class="row-title">${gloss(lesson.title)}</span><span class="row-blurb">${gloss(lesson.blurb)}</span></span><span class="count">${mastered}/${lesson.items.length}</span></button></li>`;
         })
         .join("");
     const groups = ["Presente", "Passado", "Futuro", "Composto"]
@@ -406,7 +474,7 @@ dd { margin: 0; color: var(--musgo); }
       <h1>Portuguese Language Lab</h1>
       <p class="lede">Type the verb, then hear the sentence on this device. Present, past, future, and the compound forms.</p>
       ${img("notebook", "hero")}
-      <button type="button" class="continue" data-act="brief" data-id="${esc((next || lessons[0]).id)}"><span class="kicker">${next ? "Continue" : "Run it again"}</span><span class="continue-title">${esc(next ? next.title : verbs[0].title)} <span aria-hidden="true">→</span></span></button>
+      <button type="button" class="continue" data-act="brief" data-id="${esc((next || lessons[0]).id)}"><span class="kicker">${next ? "Continue" : "Run it again"}</span><span class="continue-title">${gloss(next ? next.title : verbs[0].title)} <span aria-hidden="true">→</span></span></button>
       <div class="stats"><div class="stat"><p>XP</p><strong>${progress.xp}</strong></div><div class="stat"><p>Accuracy</p><strong>${pct == null ? "—" : pct + "%"}</strong></div></div>
       <h2>Verb lab</h2>
       <p class="hint">Type each form. Hear it uses this phone or computer’s Brazilian Portuguese voice.</p>
@@ -425,9 +493,9 @@ dd { margin: 0; color: var(--musgo); }
       <button type="button" class="back" data-act="home">← Lessons</button>
       ${img(sketchFor(lesson.id), "hero")}
       <p class="hello">${esc(lesson.kicker)}</p>
-      <h1>${esc(lesson.title)}</h1>
-      <p class="lede">${esc(lesson.blurb)}</p>
-      <div class="note ${tone(lesson.id)}"><p class="note-k">Before you start</p><p>${esc(lesson.note)}</p>${lesson.rows && lesson.rows.length ? `<dl class="chart">${lesson.rows.map((row) => `<div class="pair-row"><dt>${esc(row.left)}</dt><dd>${esc(row.right)}</dd></div>`).join("")}</dl>` : ""}</div>
+      <h1>${gloss(lesson.title)}</h1>
+      <p class="lede">${gloss(lesson.blurb)}</p>
+      <div class="note ${tone(lesson.id)}"><p class="note-k">Before you start</p><p>${gloss(lesson.note)}</p>${lesson.rows && lesson.rows.length ? `<dl class="chart">${lesson.rows.map((row) => `<div class="pair-row"><dt>${gloss(row.left)}</dt><dd>${gloss(row.right)}</dd></div>`).join("")}</dl>` : ""}</div>
       <p class="hint">${lesson.items.length} exercises. A few minutes.</p>
       <button type="button" class="primary" data-act="start">Start</button>
     </main>`;
@@ -452,7 +520,7 @@ dd { margin: 0; color: var(--musgo); }
     return `<div class="drill">
       <header class="drill-head">
         <button type="button" class="back-round" data-act="home" aria-label="Back to lessons">←</button>
-        <div><p class="hello tight">${esc(kicker)}</p><p class="drill-title">${esc(title)}</p></div>
+        <div><p class="hello tight">${esc(kicker)}</p><p class="drill-title">${gloss(title)}</p></div>
         <p class="count">${screen.index + 1}/${items.length}</p>
       </header>
       <div class="bar"><span style="width:${(screen.index / items.length) * 100}%"></span></div>
@@ -516,7 +584,7 @@ dd { margin: 0; color: var(--musgo); }
     const answer = !step.ok && item.kind !== "pairs" ? `<p class="reveal">${esc(solution(item))}</p>` : "";
     const pairs = !step.ok && item.kind === "pairs" ? `<ul class="pairs-key">${item.pairs.map((pair) => `<li>${esc(pair.pt)} — ${esc(pair.en)}</li>`).join("")}</ul>` : "";
     const later = !showListen && item.kind !== "pairs" && item.speak ? hearButton() : "";
-    return `<div class="feedback ${step.ok ? "tone-green" : "tone-clay"}"><p class="${step.ok ? "good-t" : "bad-t"}">${step.ok ? "Certo." : "Quase."}</p>${answer}${pairs}<p class="explain">${esc(item.explain)}</p>${later}</div>`;
+    return `<div class="feedback ${step.ok ? "tone-green" : "tone-clay"}"><p class="${step.ok ? "good-t" : "bad-t"}">${step.ok ? "Certo." : "Quase."}</p>${answer}${pairs}<p class="explain">${gloss(item.explain)}</p>${later}</div>`;
   }
 
   function done() {
@@ -553,9 +621,9 @@ dd { margin: 0; color: var(--musgo); }
   function notebook() {
     const cards = notes
       .map(
-        (note) => `<article class="note tone-gold"><h2>${esc(note.title)}</h2><p class="hint">${esc(note.lede)}</p><dl>${note.rows
-          .map((row) => `<div class="pair-row"><dt>${esc(row.left)}</dt><dd>${esc(row.right)}</dd></div>`)
-          .join("")}</dl>${note.body.map((paragraph) => `<p class="explain">${esc(paragraph)}</p>`).join("")}</article>`,
+        (note) => `<article class="note tone-gold"><h2>${gloss(note.title)}</h2><p class="hint">${gloss(note.lede)}</p><dl>${note.rows
+          .map((row) => `<div class="pair-row"><dt>${gloss(row.left)}</dt><dd>${gloss(row.right)}</dd></div>`)
+          .join("")}</dl>${note.body.map((paragraph) => `<p class="explain">${gloss(paragraph)}</p>`).join("")}</article>`,
       )
       .join("");
     return `<main class="pad"><button type="button" class="back" data-act="home">← Lessons</button>${img("notebook", "hero")}<h1>Caderno</h1><p class="lede">The six pages worth keeping open. Drills use these, they do not replace them.</p>${cards}</main>`;
