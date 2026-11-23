@@ -293,12 +293,41 @@ dd { margin: 0; color: var(--musgo); }
   }
   function speak(text) {
     try {
-      if (!("speechSynthesis" in window)) return false;
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "pt-BR";
-      utter.rate = 0.92;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utter);
+      const synth = window.speechSynthesis;
+      if (!synth || typeof SpeechSynthesisUtterance !== "function") return false;
+      const voices = synth.getVoices() || [];
+      const voice =
+        voices.find((entry) => /pt[-_]BR/i.test(entry.lang)) ||
+        voices.find((entry) => /^pt([-_]|$)/i.test(entry.lang)) ||
+        null;
+      const start = (chosen) => {
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = "pt-BR";
+        utter.rate = 0.92;
+        if (chosen) utter.voice = chosen;
+        utter.onerror = (event) => {
+          const reason = event && event.error;
+          if (reason === "interrupted" || reason === "canceled") return;
+          if (chosen) {
+            start(null);
+            return;
+          }
+          step.missing = true;
+          render();
+        };
+        if (synth.paused) synth.resume();
+        synth.speak(utter);
+        window.setTimeout(() => {
+          if (synth.paused) synth.resume();
+        }, 120);
+      };
+      // Chrome drops speak() when it is in the same turn as cancel().
+      if (synth.speaking || synth.pending) {
+        synth.cancel();
+        window.setTimeout(() => start(voice), 70);
+      } else {
+        start(voice);
+      }
       return true;
     } catch {
       return false;
@@ -703,6 +732,12 @@ dd { margin: 0; color: var(--musgo); }
     }
   });
 
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", () => {
+      window.speechSynthesis.getVoices();
+    });
+  }
   render();
 })();
 </script>
