@@ -359,14 +359,44 @@ dd { margin: 0; color: var(--musgo); }
     if (hour < 18) return "Boa tarde";
     return "Boa noite";
   }
+  function brazilianVoice() {
+    const voices = window.speechSynthesis.getVoices() || [];
+    return (
+      voices.find((entry) => /pt[-_]BR/i.test(entry.lang) && /google/i.test(entry.name)) ||
+      voices.find((entry) => /pt[-_]BR/i.test(entry.lang) && entry.localService === false) ||
+      voices.find((entry) => /pt[-_]BR/i.test(entry.lang) && !/compact|espeak/i.test(entry.name)) ||
+      voices.find((entry) => /pt[-_]BR/i.test(entry.lang)) ||
+      null
+    );
+  }
   function speak(text) {
     try {
-      if (!("speechSynthesis" in window)) return false;
+      const synth = window.speechSynthesis;
+      if (!synth || typeof SpeechSynthesisUtterance !== "function") return false;
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = "pt-BR";
       utter.rate = 0.92;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utter);
+      const start = () => {
+        const voice = brazilianVoice();
+        if (voice) utter.voice = voice;
+        const busy = synth.speaking || synth.pending;
+        if (busy) synth.cancel();
+        window.setTimeout(() => synth.speak(utter), busy ? 50 : 0);
+      };
+      if (!(synth.getVoices() || []).length) {
+        let begun = false;
+        const once = () => {
+          if (begun) return;
+          begun = true;
+          synth.removeEventListener("voiceschanged", once);
+          start();
+        };
+        synth.addEventListener("voiceschanged", once);
+        synth.getVoices();
+        window.setTimeout(once, 400);
+        return true;
+      }
+      start();
       return true;
     } catch {
       return false;
@@ -771,6 +801,7 @@ dd { margin: 0; color: var(--musgo); }
     }
   });
 
+  if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
   render();
 })();
 </script>
