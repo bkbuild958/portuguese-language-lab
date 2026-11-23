@@ -361,51 +361,12 @@ dd { margin: 0; color: var(--musgo); }
   }
   function speak(text) {
     try {
-      const synth = window.speechSynthesis;
-      if (!synth || typeof SpeechSynthesisUtterance !== "function") return false;
+      if (!("speechSynthesis" in window)) return false;
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = "pt-BR";
       utter.rate = 0.92;
-      const voices = synth.getVoices() || [];
-      const voice =
-        voices.find((entry) => /pt[-_]BR/i.test(entry.lang)) ||
-        voices.find((entry) => /^pt([-_]|$)/i.test(entry.lang)) ||
-        null;
-      if (voice) utter.voice = voice;
-      utter.onerror = (event) => {
-        const reason = event && event.error;
-        if (!reason || reason === "interrupted" || reason === "canceled") return;
-        step.missing = true;
-        render();
-      };
-      const start = () => {
-        // Chrome ignores speak() when it is in the same instant as cancel().
-        if (synth.speaking || synth.pending) synth.cancel();
-        window.setTimeout(() => {
-          if (synth.paused) synth.resume();
-          synth.speak(utter);
-        }, 50);
-      };
-      if (!voices.length) {
-        let begun = false;
-        const once = () => {
-          if (begun) return;
-          begun = true;
-          synth.removeEventListener("voiceschanged", once);
-          const ready = synth.getVoices() || [];
-          const picked =
-            ready.find((entry) => /pt[-_]BR/i.test(entry.lang)) ||
-            ready.find((entry) => /^pt([-_]|$)/i.test(entry.lang)) ||
-            null;
-          if (picked) utter.voice = picked;
-          start();
-        };
-        synth.addEventListener("voiceschanged", once);
-        synth.getVoices();
-        window.setTimeout(once, 250);
-        return true;
-      }
-      start();
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
       return true;
     } catch {
       return false;
